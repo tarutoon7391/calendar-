@@ -110,6 +110,38 @@ router.post('/:code/stamps', async (req, res, next) => {
   }
 });
 
+// スタンプ更新（絵文字・メモの一方だけでも更新できる）
+router.patch('/:code/stamps/:id', async (req, res, next) => {
+  try {
+    const room = await findRoomByCode(req.params.code);
+    if (!room) return res.status(404).json({ error: 'ルームが見つかりません' });
+
+    const { emoji, memo } = req.body || {};
+    if (emoji === undefined && memo === undefined) {
+      return res.status(400).json({ error: 'emoji か memo を指定してください' });
+    }
+
+    const id = Number(req.params.id);
+    const { rows } = await pool.query(
+      `UPDATE stamps
+          SET emoji = COALESCE($3, emoji),
+              memo  = COALESCE($4, memo)
+        WHERE id = $1 AND room_id = $2
+        RETURNING id, date::text AS date, emoji, memo`,
+      [id, room.id, emoji !== undefined ? String(emoji) : null, memo !== undefined ? String(memo).trim() : null]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'スタンプが見つかりません' });
+    }
+
+    // 同じルームの全員にリアルタイム通知
+    req.app.get('io').to(room.code).emit('stamp:updated', rows[0]);
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // スタンプ削除
 router.delete('/:code/stamps/:id', async (req, res, next) => {
   try {

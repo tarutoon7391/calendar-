@@ -39,6 +39,14 @@ export function addStamp(code, { date, emoji, memo }) {
   });
 }
 
+// スタンプ更新（絵文字・メモの書き換え）
+export function updateStamp(code, id, { emoji, memo }) {
+  return request(`/api/rooms/${code}/stamps/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ emoji, memo }),
+  });
+}
+
 // スタンプ削除
 export function deleteStamp(code, id) {
   return request(`/api/rooms/${code}/stamps/${id}`, { method: 'DELETE' });

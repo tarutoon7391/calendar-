@@ -26,7 +26,9 @@ export default function Calendar({ room, onLeave }) {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1); // 1〜12
   const [stamps, setStamps] = useState([]);
+  // 最後にタップした日付（モーダルを閉じても緑ハイライトとして残す）
   const [selectedDate, setSelectedDate] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   // 表示中の月のスタンプを取得する
   const reload = useCallback(async () => {
@@ -56,9 +58,13 @@ export default function Calendar({ room, onLeave }) {
     const handleDeleted = ({ id }) => {
       setStamps((prev) => prev.filter((s) => s.id !== id));
     };
+    const handleUpdated = (stamp) => {
+      setStamps((prev) => prev.map((s) => (s.id === stamp.id ? stamp : s)));
+    };
 
     socket.on('stamp:added', handleAdded);
     socket.on('stamp:deleted', handleDeleted);
+    socket.on('stamp:updated', handleUpdated);
     // 再接続時にルームへ入り直す
     const handleReconnect = () => {
       socket.emit('room:join', room.code);
@@ -70,6 +76,7 @@ export default function Calendar({ room, onLeave }) {
       socket.emit('room:leave', room.code);
       socket.off('stamp:added', handleAdded);
       socket.off('stamp:deleted', handleDeleted);
+      socket.off('stamp:updated', handleUpdated);
       socket.off('connect', handleReconnect);
     };
   }, [room.code, year, month, reload]);
@@ -141,8 +148,13 @@ export default function Calendar({ room, onLeave }) {
           return (
             <button
               key={dateKey}
-              className={`day-cell ${dateKey === todayKey ? 'today' : ''}`}
-              onClick={() => setSelectedDate(dateKey)}
+              className={`day-cell ${dateKey === todayKey ? 'today' : ''} ${
+                dateKey === selectedDate ? 'selected' : ''
+              }`}
+              onClick={() => {
+                setSelectedDate(dateKey);
+                setModalOpen(true);
+              }}
             >
               <span className="day-number">{day}</span>
               <span className="day-stamps">
@@ -158,12 +170,12 @@ export default function Calendar({ room, onLeave }) {
         })}
       </div>
 
-      {selectedDate && (
+      {modalOpen && selectedDate && (
         <DayModal
           room={room}
           date={selectedDate}
           stamps={stampsByDate[selectedDate] || []}
-          onClose={() => setSelectedDate(null)}
+          onClose={() => setModalOpen(false)}
           onChanged={reload}
         />
       )}
